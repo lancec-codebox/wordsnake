@@ -16,9 +16,9 @@ const GRID_SIZE = 10;
 const NUM_OPTIONS = 5;
 
 const SPEED_MAP: Record<Difficulty, number> = {
-  easy: 280,
-  medium: 200,
-  hard: 140,
+  easy: 420,
+  medium: 300,
+  hard: 200,
 };
 
 let foodIdCounter = 0;
@@ -32,38 +32,72 @@ function getInitialSnake(): Position[] {
   ];
 }
 
-function getOccupiedPositions(snake: Position[], foods: FoodItem[]): Set<string> {
-  const occupied = new Set<string>();
-  snake.forEach(s => occupied.add(`${s.x},${s.y}`));
-  foods.forEach(f => occupied.add(`${f.position.x},${f.position.y}`));
-  return occupied;
-}
-
-function getRandomFreePosition(occupied: Set<string>): Position {
-  const free: Position[] = [];
-  for (let x = 0; x < GRID_SIZE; x++) {
-    for (let y = 0; y < GRID_SIZE; y++) {
-      if (!occupied.has(`${x},${y}`)) {
-        free.push({ x, y });
-      }
-    }
-  }
-  if (free.length === 0) return { x: 0, y: 0 };
-  return free[Math.floor(Math.random() * free.length)];
+function getDistance(a: Position, b: Position): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
 function placeFoods(snake: Position[], options: WordPair[]): FoodItem[] {
-  const occupied = getOccupiedPositions(snake, []);
+  const snakeSet = new Set(snake.map(s => `${s.x},${s.y}`));
+  const allCells: Position[] = [];
+  for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      if (!snakeSet.has(`${x},${y}`)) {
+        allCells.push({ x, y });
+      }
+    }
+  }
+
+  // Shuffle cells for randomness
+  for (let i = allCells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allCells[i], allCells[j]] = [allCells[j], allCells[i]];
+  }
+
+  // Minimum Manhattan distance between food items
+  const MIN_DISTANCE = 3;
   const foods: FoodItem[] = [];
-  
+  const placed: Position[] = [];
+
   for (const word of options) {
-    const pos = getRandomFreePosition(occupied);
-    occupied.add(`${pos.x},${pos.y}`);
-    foods.push({
-      position: pos,
-      word,
-      id: foodIdCounter++,
-    });
+    let bestPos: Position | null = null;
+    let bestMinDist = -1;
+
+    // Try to find a cell that's far enough from all placed foods
+    for (const cell of allCells) {
+      if (foods.some(f => f.position.x === cell.x && f.position.y === cell.y)) continue;
+
+      const minDist = placed.length === 0
+        ? Infinity
+        : Math.min(...placed.map(p => getDistance(cell, p)));
+
+      if (minDist >= MIN_DISTANCE && (bestPos === null || minDist > bestMinDist)) {
+        bestPos = cell;
+        bestMinDist = minDist;
+      }
+    }
+
+    // Fallback: if no cell meets minimum distance, pick the one with max min-distance
+    if (!bestPos) {
+      for (const cell of allCells) {
+        if (foods.some(f => f.position.x === cell.x && f.position.y === cell.y)) continue;
+        const minDist = placed.length === 0
+          ? Infinity
+          : Math.min(...placed.map(p => getDistance(cell, p)));
+        if (minDist > bestMinDist) {
+          bestPos = cell;
+          bestMinDist = minDist;
+        }
+      }
+    }
+
+    if (bestPos) {
+      placed.push(bestPos);
+      foods.push({
+        position: bestPos,
+        word,
+        id: foodIdCounter++,
+      });
+    }
   }
   return foods;
 }
@@ -178,19 +212,44 @@ export function useWordSnake() {
 
   const replaceWrongFood = useCallback((eatenFoodId: number, currentSnake: Position[], currentFoods: FoodItem[], targetZh: string | undefined) => {
     const remainingFoods = currentFoods.filter(f => f.id !== eatenFoodId);
-    const occupied = getOccupiedPositions(currentSnake, remainingFoods);
     const usedZh = new Set([...remainingFoods.map(f => f.word.zh)]);
     if (targetZh) usedZh.add(targetZh);
     const available = WORD_BANK.filter(w => !usedZh.has(w.zh));
     
     if (available.length > 0) {
       const newWord = available[Math.floor(Math.random() * available.length)];
-      const pos = getRandomFreePosition(occupied);
-      remainingFoods.push({
-        position: pos,
-        word: newWord,
-        id: foodIdCounter++,
-      });
+      // Find a free cell far from other foods
+      const occupiedSet = new Set([
+        ...currentSnake.map(s => `${s.x},${s.y}`),
+        ...remainingFoods.map(f => `${f.position.x},${f.position.y}`),
+      ]);
+      const freeCells: Position[] = [];
+      for (let x = 0; x < GRID_SIZE; x++) {
+        for (let y = 0; y < GRID_SIZE; y++) {
+          if (!occupiedSet.has(`${x},${y}`)) {
+            freeCells.push({ x, y });
+          }
+        }
+      }
+      if (freeCells.length > 0) {
+        // Pick the cell furthest from existing foods
+        let bestPos = freeCells[0];
+        let bestDist = -1;
+        for (const cell of freeCells) {
+          const minDist = remainingFoods.length === 0
+            ? Infinity
+            : Math.min(...remainingFoods.map(f => getDistance(cell, f.position)));
+          if (minDist > bestDist) {
+            bestDist = minDist;
+            bestPos = cell;
+          }
+        }
+        remainingFoods.push({
+          position: bestPos,
+          word: newWord,
+          id: foodIdCounter++,
+        });
+      }
     }
     return remainingFoods;
   }, []);
@@ -222,11 +281,11 @@ export function useWordSnake() {
 
     lastDirectionRef.current = currentDirection;
 
-    // Check wall collision
-    if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
-      handleGameOver();
-      return;
-    }
+    // Wrap around edges (toroidal board)
+    newHead = {
+      x: ((newHead.x % GRID_SIZE) + GRID_SIZE) % GRID_SIZE,
+      y: ((newHead.y % GRID_SIZE) + GRID_SIZE) % GRID_SIZE,
+    };
 
     // Check self collision
     if (currentSnake.some(s => s.x === newHead.x && s.y === newHead.y)) {
