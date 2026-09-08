@@ -53,9 +53,9 @@ function getRandomPositionInQuadrant(quadrant: number, occupied: Set<string>): P
 }
 
 const SPEED_MAP: Record<Difficulty, number> = {
-  easy: 420,
-  medium: 300,
-  hard: 200,
+  easy: 840,
+  medium: 600,
+  hard: 400,
 };
 
 let foodIdCounter = 0;
