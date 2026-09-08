@@ -287,14 +287,18 @@ export function useWordSnake() {
       y: ((newHead.y % GRID_SIZE) + GRID_SIZE) % GRID_SIZE,
     };
 
+    // Check food collision first to determine if snake will grow
+    const eatenFood = currentFoods.find(f => f.position.x === newHead.x && f.position.y === newHead.y);
+    const willGrow = eatenFood && currentTarget && eatenFood.word.zh === currentTarget.zh;
+
     // Check self collision
-    if (currentSnake.some(s => s.x === newHead.x && s.y === newHead.y)) {
+    // If snake will grow (tail stays), check against full body
+    // If snake won't grow (tail moves), exclude tail from check
+    const bodyToCheck = willGrow ? currentSnake : currentSnake.slice(0, -1);
+    if (bodyToCheck.some(s => s.x === newHead.x && s.y === newHead.y)) {
       handleGameOver();
       return;
     }
-
-    // Check food collision
-    const eatenFood = currentFoods.find(f => f.position.x === newHead.x && f.position.y === newHead.y);
 
     if (eatenFood) {
       const isCorrect = currentTarget && eatenFood.word.zh === currentTarget.zh;

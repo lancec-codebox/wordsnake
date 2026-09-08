@@ -203,7 +203,7 @@ function App() {
           return (
             <div
               key={index}
-              className="absolute transition-all duration-75 ease-linear"
+              className="absolute"
               style={{
                 left: segment.x * cellSize + 1,
                 top: segment.y * cellSize + 1,
