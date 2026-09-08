@@ -145,8 +145,8 @@ export function useWordSnake() {
     
     if (available.length === 0) return;
     
-    // Pick a new target from available words
-    const newTarget = available[Math.floor(Math.random() * available.length)];
+    // Pick a new word for the new apple
+    const newWord = available[Math.floor(Math.random() * available.length)];
     
     // Place new food in the quadrant that was empty before consumption
     const occupiedSet = new Set([
@@ -157,13 +157,19 @@ export function useWordSnake() {
     
     const newFood: FoodItem = {
       position: newPos,
-      word: newTarget,
+      word: newWord,
       id: foodIdCounter++,
       quadrant: emptyQuadrantBefore,
     };
     
-    setTargetWord(newTarget);
-    setFoods([...remainingFoods, newFood]);
+    // Combine all foods (existing + new)
+    const allFoods = [...remainingFoods, newFood];
+    
+    // Randomly pick which apple is the correct answer
+    const targetFood = allFoods[Math.floor(Math.random() * allFoods.length)];
+    
+    setTargetWord(targetFood.word);
+    setFoods(allFoods);
     setRound(r => r + 1);
   }, []);
 
