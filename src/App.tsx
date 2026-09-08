@@ -160,15 +160,21 @@ function App() {
         <div className="absolute inset-0 bg-slate-800/80">
           {Array.from({ length: gridSize }).map((_, row) => (
             <div key={row} className="flex">
-              {Array.from({ length: gridSize }).map((_, col) => (
-                <div
-                  key={col}
-                  className={`border border-white/[0.03] ${
-                    (row + col) % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'
-                  }`}
-                  style={{ width: cellSize, height: cellSize }}
-                />
-              ))}
+              {Array.from({ length: gridSize }).map((_, col) => {
+                const isQuadBorderRight = col === gridSize / 2 - 1;
+                const isQuadBorderBottom = row === gridSize / 2 - 1;
+                return (
+                  <div
+                    key={col}
+                    className={`border border-white/[0.03] ${
+                      (row + col) % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'
+                    } ${isQuadBorderRight ? 'border-r-emerald-400/20 border-r-2' : ''} ${
+                      isQuadBorderBottom ? 'border-b-emerald-400/20 border-b-2' : ''
+                    }`}
+                    style={{ width: cellSize, height: cellSize }}
+                  />
+                );
+              })}
             </div>
           ))}
         </div>
@@ -177,7 +183,7 @@ function App() {
         {foods.map((food) => (
           <div
             key={food.id}
-            className="absolute flex items-center justify-center transition-all duration-200"
+            className="absolute flex items-center justify-center p-0.5"
             style={{
               left: food.position.x * cellSize,
               top: food.position.y * cellSize,
@@ -185,10 +191,10 @@ function App() {
               height: cellSize,
             }}
           >
-            <div className="w-[90%] h-[90%] rounded-full bg-gradient-to-br from-rose-400 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/30 animate-food-pulse border-2 border-rose-300/50">
+            <div className="w-full h-full rounded-xl bg-gradient-to-br from-rose-400 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/40 animate-food-pulse border-2 border-rose-200/60">
               <span 
-                className="text-white font-bold leading-none text-center"
-                style={{ fontSize: Math.max(10, cellSize * 0.32) }}
+                className="text-white font-black leading-none text-center drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]"
+                style={{ fontSize: Math.max(14, cellSize * 0.52) }}
               >
                 {food.word.zh}
               </span>
