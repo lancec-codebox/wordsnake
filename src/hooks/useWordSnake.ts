@@ -14,7 +14,7 @@ export interface FoodItem {
 }
 
 const GRID_SIZE = 10;
-const NUM_OPTIONS = 4;
+const NUM_OPTIONS = 3;
 const HALF = GRID_SIZE / 2;
 
 // Get the bounding box for a quadrant
@@ -73,9 +73,13 @@ function placeFoods(snake: Position[], options: WordPair[]): FoodItem[] {
   const occupied = new Set(snake.map(s => `${s.x},${s.y}`));
   const foods: FoodItem[] = [];
 
-  // Assign each food to a quadrant (round-robin for even distribution)
+  // Pick 3 random quadrants out of 4 (leaves 1 empty)
+  const allQuadrants = [0, 1, 2, 3];
+  const shuffled = allQuadrants.sort(() => Math.random() - 0.5);
+  const selectedQuadrants = shuffled.slice(0, options.length);
+
   for (let i = 0; i < options.length; i++) {
-    const quadrant = i % 4;
+    const quadrant = selectedQuadrants[i];
     const pos = getRandomPositionInQuadrant(quadrant, occupied);
     occupied.add(`${pos.x},${pos.y}`);
     foods.push({
@@ -86,6 +90,15 @@ function placeFoods(snake: Position[], options: WordPair[]): FoodItem[] {
     });
   }
   return foods;
+}
+
+// Find which quadrant is empty (has no food)
+function getEmptyQuadrant(foods: FoodItem[]): number {
+  const usedQuadrants = new Set(foods.map(f => f.quadrant));
+  for (let q = 0; q < 4; q++) {
+    if (!usedQuadrants.has(q)) return q;
+  }
+  return 0; // fallback
 }
 
 export function useWordSnake() {
@@ -125,11 +138,32 @@ export function useWordSnake() {
   useEffect(() => { livesRef.current = lives; }, [lives]);
   useEffect(() => { streakRef.current = streak; }, [streak]);
 
-  const startNewRound = useCallback((currentSnake: Position[]) => {
-    const { target, options } = generateRound(NUM_OPTIONS);
-    const newFoods = placeFoods(currentSnake, options);
-    setTargetWord(target);
-    setFoods(newFoods);
+  const startNewRound = useCallback((currentSnake: Position[], remainingFoods: FoodItem[], emptyQuadrantBefore: number) => {
+    // Keep existing foods, only add a new one in the empty quadrant
+    const usedZh = new Set(remainingFoods.map(f => f.word.zh));
+    const available = WORD_BANK.filter(w => !usedZh.has(w.zh));
+    
+    if (available.length === 0) return;
+    
+    // Pick a new target from available words
+    const newTarget = available[Math.floor(Math.random() * available.length)];
+    
+    // Place new food in the quadrant that was empty before consumption
+    const occupiedSet = new Set([
+      ...currentSnake.map(s => `${s.x},${s.y}`),
+      ...remainingFoods.map(f => `${f.position.x},${f.position.y}`),
+    ]);
+    const newPos = getRandomPositionInQuadrant(emptyQuadrantBefore, occupiedSet);
+    
+    const newFood: FoodItem = {
+      position: newPos,
+      word: newTarget,
+      id: foodIdCounter++,
+      quadrant: emptyQuadrantBefore,
+    };
+    
+    setTargetWord(newTarget);
+    setFoods([...remainingFoods, newFood]);
     setRound(r => r + 1);
   }, []);
 
@@ -283,9 +317,14 @@ export function useWordSnake() {
         setFeedback('correct');
         setTimeout(() => setFeedback(null), 500);
         
-        // Start new round after brief delay
+        // Find the empty quadrant BEFORE consumption (the one not occupied by any food)
+        const emptyQuadrantBefore = getEmptyQuadrant(currentFoods);
+        // Remaining foods after removing the eaten one
+        const remainingFoods = currentFoods.filter(f => f.id !== eatenFood.id);
+        
+        // Start new round after brief delay - only replace the eaten food
         setTimeout(() => {
-          startNewRound(newSnake);
+          startNewRound(newSnake, remainingFoods, emptyQuadrantBefore);
         }, 300);
       } else {
         // Wrong answer - lose a life, don't grow
