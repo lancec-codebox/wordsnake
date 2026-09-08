@@ -1,5 +1,6 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import { useWordSnake, Direction, Difficulty } from './hooks/useWordSnake';
+import { WORD_BANK } from './data/words';
 
 function App() {
   const {
@@ -28,6 +29,27 @@ function App() {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [cellSize, setCellSize] = useState(48);
   const [showWords, setShowWords] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'learned' | 'unlearned'>('all');
+
+  const filteredWords = useMemo(() => {
+    const learnedZh = new Set(wordsLearned.map(w => w.zh));
+    return WORD_BANK.filter(w => {
+      // Filter mode
+      if (filterMode === 'learned' && !learnedZh.has(w.zh)) return false;
+      if (filterMode === 'unlearned' && learnedZh.has(w.zh)) return false;
+      // Text filter
+      if (filter) {
+        const q = filter.toLowerCase();
+        return (
+          w.zh.includes(q) ||
+          w.en.toLowerCase().includes(q) ||
+          (w.pinyin && w.pinyin.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [filter, filterMode, wordsLearned]);
 
   // Calculate responsive cell size
   useEffect(() => {
@@ -83,9 +105,12 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 flex flex-col items-center justify-start py-4 px-2 select-none overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 flex items-start justify-center py-4 px-2 select-none overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-4 w-full max-w-6xl items-center lg:items-start justify-center">
+        {/* Game column */}
+        <div className="flex flex-col items-center w-full max-w-xl">
       {/* Header */}
-      <div className="w-full max-w-xl mb-3">
+      <div className="w-full mb-3">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">
             <span className="text-emerald-400">蛇</span> Word Snake
@@ -393,33 +418,177 @@ function App() {
         <span>← ↑ ↓ → or WASD to move</span>
         <span>•</span>
         <span>Space to pause</span>
-        <span>•</span>
-        <button
-          onClick={() => setShowWords(!showWords)}
-          className="text-emerald-400/70 hover:text-emerald-400 transition-colors"
-        >
-          {showWords ? 'Hide' : 'Show'} word list
-        </button>
       </div>
+        </div>
 
-      {/* Word list (toggleable) */}
-      {showWords && (
-        <div className="mt-3 w-full max-w-xl bg-white/5 rounded-xl p-3 border border-white/10 max-h-32 overflow-y-auto">
-          <div className="text-white/50 text-xs mb-2 uppercase tracking-wider">All vocabulary</div>
-          <div className="grid grid-cols-3 md:grid-cols-4 gap-1">
-            {wordsLearned.length > 0 ? (
-              wordsLearned.map((w, i) => (
-                <div key={i} className="text-white/70 text-xs">
-                  <span className="text-emerald-400">{w.en}</span> = {w.zh}
-                </div>
-              ))
-            ) : (
-              <div className="text-white/40 text-xs col-span-full">
-                Learn words by playing! Start the game to begin.
+        {/* Cheat sheet - side panel on desktop, overlay on mobile */}
+        <div className={`
+          ${showWords ? 'fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto' : 'hidden lg:block'}
+          ${showWords ? 'bg-black/60 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-0' : ''}
+        `}>
+          {/* Mobile close button backdrop */}
+          {showWords && (
+            <div 
+              className="lg:hidden absolute inset-0"
+              onClick={() => setShowWords(false)}
+            />
+          )}
+          
+          <div className={`
+            ${showWords ? 'fixed right-0 top-0 h-full w-80 max-w-[85vw] lg:relative lg:w-72 xl:w-80' : ''}
+            bg-slate-900/95 lg:bg-white/[0.03] backdrop-blur-xl border-l lg:border border-white/10 
+            rounded-none lg:rounded-2xl p-4 overflow-hidden flex flex-col
+            ${showWords ? 'animate-slide-in' : ''}
+          `}>
+            {/* Cheat sheet header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">📖</span>
+                <h2 className="text-white font-bold text-base">Cheat Sheet</h2>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/50">
+                  {wordsLearned.length}/{WORD_BANK.length}
+                </span>
+                <button
+                  onClick={() => setShowWords(false)}
+                  className="lg:hidden text-white/50 hover:text-white p-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Search / filter */}
+            <div className="flex gap-1 mb-3">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50"
+                  onChange={(e) => setFilter(e.target.value)}
+                  value={filter}
+                />
+              </div>
+            </div>
+
+            {/* Filter tabs */}
+            <div className="flex gap-1 mb-3">
+              <button
+                onClick={() => setFilterMode('all')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  filterMode === 'all' 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-white/5 text-white/50 border border-white/10'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilterMode('learned')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  filterMode === 'learned' 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-white/5 text-white/50 border border-white/10'
+                }`}
+              >
+                Learned
+              </button>
+              <button
+                onClick={() => setFilterMode('unlearned')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  filterMode === 'unlearned' 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-white/5 text-white/50 border border-white/10'
+                }`}
+              >
+                New
+              </button>
+            </div>
+
+            {/* Word list */}
+            <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+              {filteredWords.length === 0 ? (
+                <div className="text-white/40 text-sm text-center py-8">
+                  No words match your filter
+                </div>
+              ) : (
+                filteredWords.map((w, i) => {
+                  const isLearned = wordsLearned.some(l => l.zh === w.zh);
+                  const isCurrentTarget = targetWord?.zh === w.zh;
+                  return (
+                    <div
+                      key={`${w.zh}-${i}`}
+                      className={`
+                        flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors
+                        ${isCurrentTarget 
+                          ? 'bg-amber-500/20 border border-amber-400/40' 
+                          : isLearned
+                          ? 'bg-emerald-500/10 border border-emerald-500/20'
+                          : 'bg-white/[0.02] border border-white/5'
+                        }
+                      `}
+                    >
+                      <div className={`
+                        w-9 h-9 rounded-lg flex items-center justify-center text-white font-black shrink-0
+                        ${isCurrentTarget 
+                          ? 'bg-amber-500/40 text-amber-100' 
+                          : isLearned
+                          ? 'bg-emerald-500/30 text-emerald-100'
+                          : 'bg-white/10 text-white/80'
+                        }
+                      `}
+                        style={{ fontSize: '1rem' }}
+                      >
+                        {w.zh}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-semibold truncate ${
+                          isCurrentTarget ? 'text-amber-300' : isLearned ? 'text-emerald-300' : 'text-white/80'
+                        }`}>
+                          {w.en}
+                        </div>
+                        {w.pinyin && (
+                          <div className="text-white/40 text-xs truncate">{w.pinyin}</div>
+                        )}
+                      </div>
+                      {isLearned && !isCurrentTarget && (
+                        <span className="text-emerald-400 text-xs">✓</span>
+                      )}
+                      {isCurrentTarget && (
+                        <span className="text-amber-400 text-xs animate-pulse">●</span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Legend */}
+            <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/40">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> Current
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" /> Learned
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-white/30" /> New
+              </span>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Mobile cheat sheet toggle button (floating) */}
+      {!showWords && (
+        <button
+          onClick={() => setShowWords(true)}
+          className="fixed bottom-4 right-4 z-40 lg:hidden bg-emerald-500/90 hover:bg-emerald-500 text-white w-12 h-12 rounded-full shadow-lg shadow-emerald-500/30 flex items-center justify-center text-xl transition-all active:scale-90"
+          aria-label="Open cheat sheet"
+        >
+          📖
+        </button>
       )}
     </div>
   );
